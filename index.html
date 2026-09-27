@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>IP Tracker</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  /* ── Reset & Base ─────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        var(--tg-theme-bg-color, #ffffff);
+    --bg-sec:    var(--tg-theme-secondary-bg-color, #f4f4f5);
+    --text:      var(--tg-theme-text-color, #000000);
+    --hint:      var(--tg-theme-hint-color, #999999);
+    --link:      var(--tg-theme-link-color, #000000);
+    --btn:       var(--tg-theme-button-color, #000000);
+    --btn-text:  var(--tg-theme-button-text-color, #ffffff);
+    --card:      var(--tg-theme-bg-color, #ffffff);
+    --border:    var(--tg-theme-hint-color, #e0e0e0);
+    --danger:    #888;
+    --radius:    14px;
+    --mono:      'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  body { padding: 16px 16px 100px; }
+
+  /* ── Typography ───────────────────────────────── */
+  h1 {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--hint);
+    margin-bottom: 24px;
+  }
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--hint);
+    margin: 28px 0 12px;
+  }
+
+  /* ── Cards ────────────────────────────────────── */
+  .card {
+    background: var(--bg-sec);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 12px;
+    border: 1px solid transparent;
+    transition: border-color .3s;
+  }
+  .card.highlight {
+    border-color: var(--text);
+  }
+
+  /* ── Current IP Block ─────────────────────────── */
+  .ip-current-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--hint);
+    margin-bottom: 8px;
+  }
+  .ip-current-value {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    word-break: break-all;
+    line-height: 1.2;
+  }
+  .ip-timer {
+    font-size: 14px;
+    color: var(--hint);
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ip-timer .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text);
+    display: inline-block;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+  }
+
+  /* ── Previously Seen Badge ────────────────────── */
+  .seen-badge {
+    display: none;
+    margin-top: 14px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 13px;
+    font-weight: 600;
+    align-items: center;
+    gap: 8px;
+    animation: slideIn .4s ease;
+  }
+  .seen-badge.visible { display: flex; }
+  .seen-badge .icon { font-size: 16px; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Buttons ──────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+    -webkit-tap-highlight-color: transparent;
+    font-family: inherit;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; pointer-events: none; }
+
+  .btn-primary {
+    background: var(--btn);
+    color: var(--btn-text);
+    width: 100%;
+    margin-top: 16px;
+  }
+  .btn-secondary {
+    background: var(--bg-sec);
+    color: var(--text);
+    border: 1px solid var(--border);
+    flex: 1;
+  }
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .btn-row .btn { flex: 1; padding: 11px 10px; font-size: 13px; }
+
+  /* ── Settings ─────────────────────────────────── */
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+  }
+  .setting-row + .setting-row {
+    border-top: 1px solid var(--border);
+  }
+  .setting-label {
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .setting-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 32px 8px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23999' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+
+  /* ── History List ─────────────────────────────── */
+  .history-empty {
+    text-align: center;
+    color: var(--hint);
+    font-size: 14px;
+    padding: 32px 0;
+  }
+  .history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    animation: fadeIn .3s ease;
+  }
+  .history-item:last-child { border-bottom: none; }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .history-ip {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .history-dates {
+    font-size: 12px;
+    color: var(--hint);
+    margin-top: 3px;
+  }
+  .history-tag {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--text);
+    color: var(--bg);
+    white-space: nowrap;
+  }
+
+  /* ── Loading Spinner ──────────────────────────── */
+  .spinner {
+    display: inline-block;
+    width: 18px; height: 18px;
+    border: 2px solid var(--hint);
+    border-top-color: var(--text);
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Toast ────────────────────────────────────── */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--text);
+    color: var(--bg);
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0;
+    transition: all .3s ease;
+    z-index: 999;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ── Hidden file input ────────────────────────── */
+  #importInput { display: none; }
+
+  /* ── Clear button ─────────────────────────────── */
+  .btn-danger {
+    background: transparent;
+    color: var(--hint);
+    border: 1px solid var(--border);
+    width: 100%;
+    margin-top: 8px;
+    font-size: 13px;
+  }
+  .btn-danger:active { color: var(--text); }
+
+  /* ── Stats row ────────────────────────────────── */
+  .stats-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .stat-card {
+    flex: 1;
+    background: var(--bg-sec);
+    border-radius: var(--radius);
+    padding: 14px;
+    text-align: center;
+  }
+  .stat-value {
+    font-size: 22px;
+    font-weight: 800;
+    font-family: var(--mono);
+  }
+  .stat-label {
+    font-size: 11px;
+    color: var(--hint);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+  }
+
+  /* ── Last checked ─────────────────────────────── */
+  .last-checked {
+    font-size: 12px;
+    color: var(--hint);
+    text-align: center;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<h1>IP Tracker</h1>
+<p class="subtitle">Monitor your IP address changes over time</p>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-value" id="statChanges">0</div>
+    <div class="stat-label">Changes</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" id="statUnique">0</div>
+    <div class="stat-label">Unique IPs</div>
+  </div>
+</div>
+
+<!-- Current IP Card -->
+<div class="card highlight" id="currentCard">
+  <div class="ip-current-label">Current IP Address</div>
+  <div class="ip-current-value" id="currentIp">—</div>
+  <div class="ip-timer" id="ipTimer" style="display:none;">
+    <span class="dot"></span>
+    <span id="timerText">Active for ...</span>
+  </div>
+  <div class="seen-badge" id="seenBadge">
+    <span class="icon">⟳</span>
+    <span id="seenText">This IP was previously assigned to you</span>
+  </div>
+  <button class="btn btn-primary" id="refreshBtn" onclick="manualRefresh()">
+    <span id="refreshIcon">↻</span> Refresh Now
+  </button>
+  <div class="last-checked" id="lastChecked"></div>
+</div>
+
+<!-- Settings -->
+<div class="section-title">Settings</div>
+<div class="card">
+  <div class="setting-row">
+    <span class="setting-label">Auto-check interval</span>
+    <select class="setting-select" id="intervalSelect" onchange="saveInterval()">
+      <option value="6">Every 6 hours</option>
+      <option value="12">Every 12 hours</option>
+      <option value="24" selected>Every 24 hours</option>
+      <option value="48">Every 48 hours</option>
+    </select>
+  </div>
+</div>
+
+<!-- Export / Import -->
+<div class="section-title">Data Management</div>
+<div class="btn-row">
+  <button class="btn btn-secondary" onclick="exportJSON()">⬇ JSON</button>
+  <button class="btn btn-secondary" onclick="exportCSV()">⬇ CSV</button>
+  <button class="btn btn-secondary" onclick="document.getElementById('importInput').click()">⬆ Import</button>
+</div>
+<input type="file" id="importInput" accept=".json" onchange="importData(event)">
+<button class="btn btn-danger" onclick="clearAllData()">Clear All Data</button>
+
+<!-- History -->
+<div class="section-title">IP History <span id="historyCount"></span></div>
+<div class="card" id="historyCard">
+  <div id="historyList">
+    <div class="history-empty">No history yet. Your IP changes will appear here.</div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   Telegram WebApp Init
+   ═══════════════════════════════════════════════════ */
+try {
+  if (window.Telegram && Telegram.WebApp) {
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+  }
+} catch(e) {}
+
+/* ═══════════════════════════════════════════════════
+   Storage Helpers
+   ═══════════════════════════════════════════════════ */
+const STORAGE_KEY = 'ip_tracker_data';
+
+function getDefaultData() {
+  return {
+    current: null,       // { ip, since, lastChecked }
+    history: [],         // [{ ip, from, to }]
+    settings: { intervalHours: 24 }
+  };
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return getDefaultData();
+    const d = JSON.parse(raw);
+    if (!d.current && !d.history) return getDefaultData();
+    if (!d.settings) d.settings = { intervalHours: 24 };
+    if (!d.history) d.history = [];
+    return d;
+  } catch {
+    return getDefaultData();
+  }
+}
+
+function saveData(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+/* ═══════════════════════════════════════════════════
+   IP Fetching
+   ═══════════════════════════════════════════════════ */
+async function fetchIP() {
+  const apis = [
+    { url: 'https://api.ipify.org?format=json', parse: r => r.ip },
+    { url: 'https://api.ip.sb/ip', parse: r => r.trim() },
+    { url: 'https://ifconfig.me/all.json', parse: r => r.ip_addr }
+  ];
+  for (const api of apis) {
+    try {
+      const res = await fetch(api.url, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) continue;
+      const data = await res.json().catch(() => null);
+      const text = data ? api.parse(data) : await res.text();
+      const ip = (text || '').toString().trim();
+      if (ip && ip.length < 50) return ip;
+    } catch {}
+  }
+  throw new Error('All IP services failed');
+}
+
+/* ═══════════════════════════════════════════════════
+   Core Logic
+   ═══════════════════════════════════════════════════ */
+let timerInterval = null;
+
+async function checkIP(force = false) {
+  const data = loadData();
+  const now = new Date();
+
+  // Check if auto-check is needed
+  if (!force && data.current && data.current.lastChecked) {
+    const elapsed = now - new Date(data.current.lastChecked);
+    const msThreshold = data.settings.intervalHours * 3600 * 1000;
+    if (elapsed < msThreshold) {
+      renderAll(data);
+      return;
+    }
+  }
+
+  setRefreshing(true);
+
+  try {
+    const ip = await fetchIP();
+
+    if (!data.current) {
+      // First time ever
+      data.current = { ip, since: now.toISOString(), lastChecked: now.toISOString() };
+    } else if (data.current.ip !== ip) {
+      // IP changed — move old to history
+      data.history.unshift({
+        ip: data.current.ip,
+        from: data.current.since,
+        to: data.current.lastChecked
+      });
+      data.current = { ip, since: now.toISOString(), lastChecked: now.toISOString() };
+    } else {
+      // Same IP — just update lastChecked
+      data.current.lastChecked = now.toISOString();
+    }
+
+    saveData(data);
+    renderAll(data);
+    if (force) showToast('IP checked successfully');
+  } catch (err) {
+    showToast('Failed to fetch IP');
+    console.error(err);
+  } finally {
+    setRefreshing(false);
+  }
+}
+
+function manualRefresh() {
+  checkIP(true);
+}
+
+/* ═══════════════════════════════════════════════════
+   Rendering
+   ═══════════════════════════════════════════════════ */
+function renderAll(data) {
+  renderCurrentIP(data);
+  renderHistory(data);
+  renderStats(data);
+  renderSettings(data);
+  startTimer(data);
+}
+
+function renderCurrentIP(data) {
+  const el = document.getElementById('currentIp');
+  const timerEl = document.getElementById('ipTimer');
+  const badge = document.getElementById('seenBadge');
+  const lastCheckedEl = document.getElementById('lastChecked');
+
+  if (!data.current) {
+    el.textContent = '—';
+    timerEl.style.display = 'none';
+    badge.classList.remove('visible');
+    lastCheckedEl.textContent = '';
+    return;
+  }
+
+  el.textContent = data.current.ip;
+  timerEl.style.display = 'flex';
+
+  // Previously seen?
+  const wasSeen = data.history.some(h => h.ip === data.current.ip);
+  if (wasSeen) {
+    const occurrences = data.history.filter(h => h.ip === data.current.ip).length;
+    document.getElementById('seenText').textContent =
+      `This IP was previously assigned to you (${occurrences} time${occurrences > 1 ? 's' : ''})`;
+    badge.classList.add('visible');
+  } else {
+    badge.classList.remove('visible');
+  }
+
+  // Last checked
+  if (data.current.lastChecked) {
+    lastCheckedEl.textContent = 'Last checked: ' + formatDateTime(data.current.lastChecked);
+  }
+}
+
+function renderHistory(data) {
+  const container = document.getElementById('historyList');
+  const countEl = document.getElementById('historyCount');
+
+  if (!data.history || data.history.length === 0) {
+    container.innerHTML = '<div class="history-empty">No history yet. Your IP changes will appear here.</div>';
+    countEl.textContent = '';
+    return;
+  }
+
+  countEl.textContent = `(${data.history.length})`;
+
+  container.innerHTML = data.history.map((item, i) => `
+    <div class="history-item" style="animation-delay: ${i * 0.03}s">
+      <div>
+        <div class="history-ip">${escapeHtml(item.ip)}</div>
+        <div class="history-dates">${formatShortDate(item.from)} → ${formatShortDate(item.to)}</div>
+      </div>
+      <span class="history-tag">${formatDuration(item.from, item.to)}</span>
+    </div>
+  `).join('');
+}
+
+function renderStats(data) {
+  const changes = data.history ? data.history.length : 0;
+  const allIPs = new Set();
+  if (data.current) allIPs.add(data.current.ip);
+  if (data.history) data.history.forEach(h => allIPs.add(h.ip));
+
+  document.getElementById('statChanges').textContent = changes;
+  document.getElementById('statUnique').textContent = allIPs.size;
+}
+
+function renderSettings(data) {
+  document.getElementById('intervalSelect').value = data.settings.intervalHours;
+}
+
+/* ═══════════════════════════════════════════════════
+   Timer
+   ═══════════════════════════════════════════════════ */
+function startTimer(data) {
+  if (timerInterval) clearInterval(timerInterval);
+  if (!data.current) return;
+
+  function update() {
+    const now = new Date();
+    const since = new Date(data.current.since);
+    document.getElementById('timerText').textContent = 'Active for ' + formatDuration(since, now);
+  }
+  update();
+  timerInterval = setInterval(update, 30000); // every 30s
+}
+
+/* ═══════════════════════════════════════════════════
+   Settings
+   ═══════════════════════════════════════════════════ */
+function saveInterval() {
+  const data = loadData();
+  data.settings.intervalHours = parseInt(document.getElementById('intervalSelect').value, 10);
+  saveData(data);
+  showToast(`Auto-check: every ${data.settings.intervalHours}h`);
+}
+
+/* ═══════════════════════════════════════════════════
+   Export / Import
+   ═══════════════════════════════════════════════════ */
+function exportJSON() {
+  const data = loadData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, `ip-tracker-backup-${dateStamp()}.json`);
+  showToast('Exported as JSON');
+}
+
+function exportCSV() {
+  const data = loadData();
+  let csv = 'IP,From,To,Type\n';
+
+  if (data.current) {
+    csv += `"${data.current.ip}","${data.current.since}","now","current"\n`;
+  }
+  if (data.history) {
+    data.history.forEach(h => {
+      csv += `"${h.ip}","${h.from}","${h.to}","history"\n`;
+    });
+  }
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  downloadBlob(blob, `ip-tracker-backup-${dateStamp()}.csv`);
+  showToast('Exported as CSV');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!imported.current && !imported.history) {
+        showToast('Invalid backup file');
+        return;
+      }
+      // Merge or replace
+      const existing = loadData();
+      if (imported.current) existing.current = imported.current;
+      if (imported.history) {
+        // Merge: add entries that don't already exist
+        const existingKeys = new Set(existing.history.map(h => h.ip + h.from));
+        imported.history.forEach(h => {
+          if (!existingKeys.has(h.ip + h.from)) {
+            existing.history.push(h);
+          }
+        });
+        // Sort by "to" date descending
+        existing.history.sort((a, b) => new Date(b.to) - new Date(a.to));
+      }
+      if (imported.settings) existing.settings = imported.settings;
+      saveData(existing);
+      renderAll(existing);
+      showToast('Data imported successfully');
+    } catch {
+      showToast('Failed to parse file');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function clearAllData() {
+  if (confirm('Delete all IP tracking data? This cannot be undone.')) {
+    localStorage.removeItem(STORAGE_KEY);
+    const data = getDefaultData();
+    saveData(data);
+    renderAll(data);
+    showToast('All data cleared');
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   UI Helpers
+   ═══════════════════════════════════════════════════ */
+function setRefreshing(on) {
+  const btn = document.getElementById('refreshBtn');
+  const icon = document.getElementById('refreshIcon');
+  btn.disabled = on;
+  icon.innerHTML = on ? '<span class="spinner"></span>' : '↻';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ═══════════════════════════════════════════════════
+   Date / Format Helpers
+   ═══════════════════════════════════════════════════ */
+function formatDuration(from, to) {
+  const ms = new Date(to) - new Date(from);
+  if (ms < 0) return '0m';
+  const mins  = Math.floor(ms / 60000);
+  const hours = Math.floor(mins / 60);
+  const days  = Math.floor(hours / 24);
+
+  if (days > 0)  return `${days}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${mins % 60}m`;
+  return `${mins}m`;
+}
+
+function formatDateTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+
+function formatShortDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function dateStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/* ═══════════════════════════════════════════════════
+   Init
+   ═══════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  const data = loadData();
+  renderAll(data);
+  checkIP(false);
+});
+</script>
+</body>
+</html>
